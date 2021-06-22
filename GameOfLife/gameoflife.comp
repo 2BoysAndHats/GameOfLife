@@ -1,0 +1,34 @@
+#version 430
+
+// each instance of the shader should be responsible for a 1x1 section of the image (i.e. one pixel)
+layout(local_size_x = 1, local_size_y = 1) in;
+layout(rgba32f, binding = 0) uniform image2D img_input;
+layout(rgba32f, binding = 1) uniform image2D img_output;
+
+void main() {
+    ivec2 pixel_coords = ivec2(gl_GlobalInvocationID.xy);
+
+    // Grab state last frame (alive or dead)
+    vec4 oldState = imageLoad(img_input, pixel_coords);
+
+    // Count how many neighours we currently have
+    int numNeighbours = 0;
+    numNeighbours += int(imageLoad(img_input, ivec2(pixel_coords.x - 1, pixel_coords.y - 1))).x;
+    numNeighbours += int(imageLoad(img_input, ivec2(pixel_coords.x, pixel_coords.y - 1))).x;
+    numNeighbours += int(imageLoad(img_input, ivec2(pixel_coords.x + 1, pixel_coords.y - 1))).x;
+    numNeighbours += int(imageLoad(img_input, ivec2(pixel_coords.x - 1, pixel_coords.y))).x;
+    numNeighbours += int(imageLoad(img_input, ivec2(pixel_coords.x + 1, pixel_coords.y))).x;
+    numNeighbours += int(imageLoad(img_input, ivec2(pixel_coords.x - 1, pixel_coords.y + 1))).x;
+    numNeighbours += int(imageLoad(img_input, ivec2(pixel_coords.x, pixel_coords.y + 1))).x;
+    numNeighbours += int(imageLoad(img_input, ivec2(pixel_coords.x + 1, pixel_coords.y + 1))).x;
+    
+    vec4 pixel = vec4(1.0, 1.0, 1.0, 1.0);
+
+    // We're alive if we have three neighbours, or if we were alive last frame and we have two alive neighbours.
+    // In every other circumstance, we're dead.
+    // GPU's aren't very good with branching statments, so, for efficency we use a bunch of math operations instead
+    pixel *= max(1 - abs(numNeighbours - 3), 0) + oldState.x * max(1 - abs(numNeighbours - 2), 0);
+    
+    // Finally, write back to the output texture.
+    imageStore(img_output, pixel_coords, pixel);
+}
